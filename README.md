@@ -3208,6 +3208,1266 @@ assert decrypted == plaintext
 print("Encryption/Decryption successful!")
 ```
 
+## Detailed User Guide and Tutorials
+
+This section provides comprehensive, step-by-step guides for using SNS Protocol 2. Each tutorial builds upon the previous one, taking you from basic usage to advanced implementations.
+
+### Tutorial 1: Getting Started - Basic Encryption/Decryption
+
+#### Step 1: Installation
+First, ensure you have Python 3.8+ installed, then install the required packages:
+
+```bash
+# Install core dependencies
+pip install cryptography numpy hashlib hmac
+
+# Optional: Install advanced features
+pip install pycryptodome ecdsa pynacl
+
+# For development and testing
+pip install pytest black flake8
+```
+
+#### Step 2: Import and Initialize
+```python
+# Import the protocol
+from sns_protocol2 import SNSProtocol2
+
+# Initialize with basic parameters
+protocol = SNSProtocol2(
+    user_id="alice",           # Your user identifier
+    peer_id="bob",            # Recipient's identifier
+    session_seed="my_secret_session_2024"  # Unique session identifier
+)
+
+print("Protocol initialized successfully!")
+```
+
+#### Step 3: Prepare Your Data
+SNS Protocol 2 works with bytes data. Convert your text/data to bytes:
+
+```python
+# For text data
+text_data = "Hello, this is a secret message!"
+data_bytes = text_data.encode('utf-8')
+
+# For file data
+with open('secret_file.txt', 'rb') as f:
+    file_bytes = f.read()
+
+# For binary data
+binary_data = b'\x00\x01\x02\x03\xFF\xFE\xFD'
+```
+
+#### Step 4: Encrypt Data
+```python
+# Encrypt the data
+encrypted_data = protocol.encrypt_data(data_bytes)
+
+print(f"Original data length: {len(data_bytes)} bytes")
+print(f"Encrypted data length: {len(encrypted_data)} bytes")
+print(f"Encrypted data (hex): {encrypted_data.hex()[:50]}...")
+```
+
+#### Step 5: Decrypt Data
+```python
+# Decrypt the data (must use same protocol instance/keys)
+decrypted_data = protocol.decrypt_data(encrypted_data)
+
+# Convert back to original format
+decrypted_text = decrypted_data.decode('utf-8')
+
+print(f"Decrypted text: {decrypted_text}")
+print(f"Decryption successful: {decrypted_data == data_bytes}")
+```
+
+#### Complete Example
+```python
+#!/usr/bin/env python3
+"""
+Basic SNS Protocol 2 Example
+"""
+
+from sns_protocol2 import SNSProtocol2
+
+def main():
+    # Initialize protocol
+    protocol = SNSProtocol2(
+        user_id="user123",
+        peer_id="recipient456",
+        session_seed="secure_session_2024"
+    )
+
+    # Original message
+    message = "This is a confidential message that needs encryption."
+    print(f"Original: {message}")
+
+    # Convert to bytes
+    data = message.encode('utf-8')
+
+    # Encrypt
+    encrypted = protocol.encrypt_data(data)
+    print(f"Encrypted (first 50 chars): {encrypted.hex()[:50]}...")
+
+    # Decrypt
+    decrypted = protocol.decrypt_data(encrypted)
+    decrypted_message = decrypted.decode('utf-8')
+    print(f"Decrypted: {decrypted_message}")
+
+    # Verify
+    if decrypted == data:
+        print("✓ Encryption/Decryption successful!")
+    else:
+        print("✗ Verification failed!")
+
+if __name__ == "__main__":
+    main()
+```
+
+### Tutorial 2: Key Management and Security
+
+#### Understanding Key Generation
+SNS Protocol 2 automatically generates multiple keys from your initial parameters:
+
+```python
+protocol = SNSProtocol2(
+    user_id="alice_smith",
+    peer_id="bob_jones",
+    session_seed="meeting_notes_2024_q3"
+)
+
+# The protocol generates:
+# - Master key (256-bit)
+# - 15 layer-specific keys
+# - HMAC keys for integrity
+# - Session-specific keys
+```
+
+#### Best Practices for Key Management
+```python
+import secrets
+import string
+
+def generate_secure_session_seed():
+    """Generate a cryptographically secure session seed"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(32))
+
+# Use secure random seeds
+secure_seed = generate_secure_session_seed()
+protocol = SNSProtocol2("alice", "bob", secure_seed)
+
+# Never reuse session seeds
+# Generate unique seeds for each communication session
+```
+
+#### Key Rotation
+```python
+class SecureCommunicator:
+    def __init__(self, user_id, peer_id):
+        self.user_id = user_id
+        self.peer_id = peer_id
+        self.current_seed = None
+        self.protocol = None
+
+    def rotate_keys(self):
+        """Rotate to new session keys"""
+        import time
+        self.current_seed = f"{self.user_id}_{self.peer_id}_{int(time.time())}_{secrets.token_hex(8)}"
+        self.protocol = SNSProtocol2(self.user_id, self.peer_id, self.current_seed)
+        print(f"Keys rotated. New session: {self.current_seed[:16]}...")
+
+    def send_secure_message(self, message):
+        """Send message with automatic key rotation"""
+        if not self.protocol:
+            self.rotate_keys()
+
+        data = message.encode('utf-8')
+        encrypted = self.protocol.encrypt_data(data)
+
+        # Return encrypted data and session info
+        return {
+            'encrypted_data': encrypted,
+            'session_seed': self.current_seed,
+            'timestamp': time.time()
+        }
+
+# Usage
+communicator = SecureCommunicator("alice", "bob")
+secure_package = communicator.send_secure_message("Secret meeting at 3 PM")
+```
+
+### Tutorial 3: File Encryption and Large Data Handling
+
+#### Encrypting Text Files
+```python
+def encrypt_text_file(input_path, output_path, user_id, peer_id, session_seed):
+    """Encrypt a text file"""
+
+    # Initialize protocol
+    protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    # Read text file
+    with open(input_path, 'r', encoding='utf-8') as f:
+        text_content = f.read()
+
+    # Convert to bytes and encrypt
+    data_bytes = text_content.encode('utf-8')
+    encrypted_data = protocol.encrypt_data(data_bytes)
+
+    # Write encrypted data
+    with open(output_path, 'wb') as f:
+        f.write(encrypted_data)
+
+    print(f"Encrypted {input_path} -> {output_path}")
+    print(f"Original size: {len(data_bytes)} bytes")
+    print(f"Encrypted size: {len(encrypted_data)} bytes")
+
+def decrypt_text_file(input_path, output_path, user_id, peer_id, session_seed):
+    """Decrypt a text file"""
+
+    # Initialize protocol (must match encryption parameters)
+    protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    # Read encrypted data
+    with open(input_path, 'rb') as f:
+        encrypted_data = f.read()
+
+    # Decrypt
+    decrypted_data = protocol.decrypt_data(encrypted_data)
+    decrypted_text = decrypted_data.decode('utf-8')
+
+    # Write decrypted text
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(decrypted_text)
+
+    print(f"Decrypted {input_path} -> {output_path}")
+
+# Usage
+encrypt_text_file('secret.txt', 'secret.enc', 'alice', 'bob', 'session_123')
+decrypt_text_file('secret.enc', 'secret_decrypted.txt', 'alice', 'bob', 'session_123')
+```
+
+#### Handling Large Files (Chunked Processing)
+```python
+class LargeFileEncryptor:
+    """Handle encryption/decryption of large files"""
+
+    def __init__(self, protocol, chunk_size_mb=10):
+        self.protocol = protocol
+        self.chunk_size = chunk_size_mb * 1024 * 1024  # Convert to bytes
+
+    def encrypt_large_file(self, input_path, output_path):
+        """Encrypt large file in chunks"""
+        total_size = 0
+
+        with open(input_path, 'rb') as infile, open(output_path, 'wb') as outfile:
+            while True:
+                # Read chunk
+                chunk = infile.read(self.chunk_size)
+                if not chunk:
+                    break
+
+                # Encrypt chunk
+                encrypted_chunk = self.protocol.encrypt_data(chunk)
+
+                # Write chunk size and data
+                outfile.write(len(encrypted_chunk).to_bytes(4, 'big'))
+                outfile.write(encrypted_chunk)
+
+                total_size += len(chunk)
+                print(f"Processed {total_size} bytes...")
+
+        print(f"Encryption complete: {input_path} -> {output_path}")
+
+    def decrypt_large_file(self, input_path, output_path):
+        """Decrypt large file in chunks"""
+        total_size = 0
+
+        with open(input_path, 'rb') as infile, open(output_path, 'wb') as outfile:
+            while True:
+                # Read chunk size
+                size_bytes = infile.read(4)
+                if len(size_bytes) < 4:
+                    break
+
+                chunk_size = int.from_bytes(size_bytes, 'big')
+
+                # Read and decrypt chunk
+                encrypted_chunk = infile.read(chunk_size)
+                decrypted_chunk = self.protocol.decrypt_data(encrypted_chunk)
+
+                # Write decrypted chunk
+                outfile.write(decrypted_chunk)
+
+                total_size += len(decrypted_chunk)
+                print(f"Processed {total_size} bytes...")
+
+        print(f"Decryption complete: {input_path} -> {output_path}")
+
+# Usage for large files
+protocol = SNSProtocol2("alice", "bob", "large_file_session")
+encryptor = LargeFileEncryptor(protocol, chunk_size_mb=50)  # 50MB chunks
+
+encryptor.encrypt_large_file('large_dataset.bin', 'large_dataset.enc')
+encryptor.decrypt_large_file('large_dataset.enc', 'large_dataset_decrypted.bin')
+```
+
+#### Streaming Encryption for Real-time Data
+```python
+import io
+
+class StreamingEncryptor:
+    """Encrypt/decrypt streaming data"""
+
+    def __init__(self, protocol, buffer_size=8192):
+        self.protocol = protocol
+        self.buffer_size = buffer_size
+
+    def encrypt_stream(self, input_stream, output_stream):
+        """Encrypt data from input stream to output stream"""
+        buffer = bytearray()
+
+        while True:
+            chunk = input_stream.read(self.buffer_size)
+            if not chunk:
+                # Encrypt remaining buffer
+                if buffer:
+                    encrypted = self.protocol.encrypt_data(bytes(buffer))
+                    output_stream.write(len(encrypted).to_bytes(4, 'big'))
+                    output_stream.write(encrypted)
+                break
+
+            buffer.extend(chunk)
+
+            # Encrypt when buffer is full
+            if len(buffer) >= self.buffer_size:
+                encrypted = self.protocol.encrypt_data(bytes(buffer))
+                output_stream.write(len(encrypted).to_bytes(4, 'big'))
+                output_stream.write(encrypted)
+                buffer.clear()
+
+    def decrypt_stream(self, input_stream, output_stream):
+        """Decrypt data from input stream to output stream"""
+        while True:
+            # Read chunk size
+            size_bytes = input_stream.read(4)
+            if len(size_bytes) < 4:
+                break
+
+            chunk_size = int.from_bytes(size_bytes, 'big')
+
+            # Read and decrypt chunk
+            encrypted_chunk = input_stream.read(chunk_size)
+            decrypted_chunk = self.protocol.decrypt_data(encrypted_chunk)
+
+            output_stream.write(decrypted_chunk)
+
+# Usage with streams
+protocol = SNSProtocol2("alice", "bob", "streaming_session")
+streamer = StreamingEncryptor(protocol)
+
+# Encrypt from file to file
+with open('input.dat', 'rb') as infile, open('encrypted.str', 'wb') as outfile:
+    streamer.encrypt_stream(infile, outfile)
+
+# Decrypt from file to file
+with open('encrypted.str', 'rb') as infile, open('output.dat', 'wb') as outfile:
+    streamer.decrypt_stream(infile, outfile)
+```
+
+### Tutorial 4: Web Application Integration
+
+#### Flask Web Application
+```python
+# app.py
+from flask import Flask, request, jsonify, render_template
+from sns_protocol2 import SNSProtocol2
+import json
+import base64
+
+app = Flask(__name__)
+
+class SecureWebApp:
+    def __init__(self):
+        self.active_sessions = {}
+
+    def get_or_create_protocol(self, user_id, peer_id, session_seed=None):
+        """Get existing protocol or create new one"""
+        session_key = f"{user_id}_{peer_id}_{session_seed}"
+
+        if session_key not in self.active_sessions:
+            protocol = SNSProtocol2(user_id, peer_id, session_seed or "web_session")
+            self.active_sessions[session_key] = protocol
+
+        return self.active_sessions[session_key]
+
+web_app = SecureWebApp()
+
+@app.route('/')
+def index():
+    return render_template('encrypt.html')
+
+@app.route('/api/encrypt', methods=['POST'])
+def encrypt_endpoint():
+    """Encrypt data via API"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['user_id', 'peer_id', 'data']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing field: {field}'}), 400
+
+        # Get protocol
+        protocol = web_app.get_or_create_protocol(
+            data['user_id'],
+            data['peer_id'],
+            data.get('session_seed')
+        )
+
+        # Encrypt data
+        if isinstance(data['data'], str):
+            plaintext = data['data'].encode('utf-8')
+        else:
+            plaintext = bytes(data['data'])
+
+        encrypted = protocol.encrypt_data(plaintext)
+
+        return jsonify({
+            'success': True,
+            'encrypted': base64.b64encode(encrypted).decode('utf-8'),
+            'length': len(encrypted),
+            'session_seed': data.get('session_seed', 'web_session')
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/decrypt', methods=['POST'])
+def decrypt_endpoint():
+    """Decrypt data via API"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['user_id', 'peer_id', 'encrypted_data']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing field: {field}'}), 400
+
+        # Get protocol
+        protocol = web_app.get_or_create_protocol(
+            data['user_id'],
+            data['peer_id'],
+            data.get('session_seed')
+        )
+
+        # Decode and decrypt
+        encrypted = base64.b64decode(data['encrypted_data'])
+        decrypted = protocol.decrypt_data(encrypted)
+
+        # Try to decode as text
+        try:
+            text_result = decrypted.decode('utf-8')
+            return jsonify({
+                'success': True,
+                'decrypted': text_result,
+                'data_type': 'text'
+            })
+        except UnicodeDecodeError:
+            return jsonify({
+                'success': True,
+                'decrypted': base64.b64encode(decrypted).decode('utf-8'),
+                'data_type': 'binary'
+            })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+```
+
+#### HTML Template (templates/encrypt.html)
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNS Protocol 2 - Secure Encryption</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab-button {
+            padding: 10px 20px;
+            background: #e9ecef;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab-button.active {
+            background: white;
+            border-bottom: 2px solid #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 SNS Protocol 2 - Secure Encryption Tool</h1>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('encrypt')">Encrypt</button>
+            <button class="tab-button" onclick="showTab('decrypt')">Decrypt</button>
+        </div>
+
+        <div id="encrypt" class="tab-content active">
+            <h2>Encrypt Message</h2>
+            <form id="encryptForm">
+                <div class="form-group">
+                    <label for="userId">Your User ID:</label>
+                    <input type="text" id="userId" value="alice" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="peerId">Recipient ID:</label>
+                    <input type="text" id="peerId" value="bob" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="sessionSeed">Session Seed (optional):</label>
+                    <input type="text" id="sessionSeed" placeholder="Leave empty for auto-generation">
+                </div>
+
+                <div class="form-group">
+                    <label for="message">Message to Encrypt:</label>
+                    <textarea id="message" placeholder="Enter your secret message here..." required></textarea>
+                </div>
+
+                <button type="submit">Encrypt Message</button>
+            </form>
+        </div>
+
+        <div id="decrypt" class="tab-content">
+            <h2>Decrypt Message</h2>
+            <form id="decryptForm">
+                <div class="form-group">
+                    <label for="decryptUserId">Your User ID:</label>
+                    <input type="text" id="decryptUserId" value="alice" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="decryptPeerId">Sender ID:</label>
+                    <input type="text" id="decryptPeerId" value="bob" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="decryptSessionSeed">Session Seed:</label>
+                    <input type="text" id="decryptSessionSeed" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="encryptedMessage">Encrypted Message (Base64):</label>
+                    <textarea id="encryptedMessage" placeholder="Paste the encrypted message here..." required></textarea>
+                </div>
+
+                <button type="submit">Decrypt Message</button>
+            </form>
+        </div>
+
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+
+            const buttons = document.querySelectorAll('.tab-button');
+            buttons.forEach(button => button.classList.remove('active'));
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Encrypt form handler
+        document.getElementById('encryptForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = {
+                user_id: document.getElementById('userId').value,
+                peer_id: document.getElementById('peerId').value,
+                session_seed: document.getElementById('sessionSeed').value || null,
+                data: document.getElementById('message').value
+            };
+
+            try {
+                const response = await fetch('/api/encrypt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                displayResult(result, 'encrypt');
+            } catch (error) {
+                displayResult({error: 'Network error: ' + error.message}, 'encrypt');
+            }
+        });
+
+        // Decrypt form handler
+        document.getElementById('decryptForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = {
+                user_id: document.getElementById('decryptUserId').value,
+                peer_id: document.getElementById('decryptPeerId').value,
+                session_seed: document.getElementById('decryptSessionSeed').value,
+                encrypted_data: document.getElementById('encryptedMessage').value
+            };
+
+            try {
+                const response = await fetch('/api/decrypt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const result = await response.json();
+                displayResult(result, 'decrypt');
+            } catch (error) {
+                displayResult({error: 'Network error: ' + error.message}, 'decrypt');
+            }
+        });
+
+        function displayResult(result, operation) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+
+            if (result.error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${result.error}`;
+            } else {
+                resultDiv.className = 'result';
+                if (operation === 'encrypt') {
+                    resultDiv.innerHTML = `
+                        <strong>Encryption Successful!</strong><br>
+                        <strong>Encrypted Data:</strong> <code>${result.encrypted}</code><br>
+                        <strong>Length:</strong> ${result.length} bytes<br>
+                        <strong>Session Seed:</strong> ${result.session_seed}
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <strong>Decryption Successful!</strong><br>
+                        <strong>Decrypted Message:</strong> ${result.decrypted}<br>
+                        <strong>Data Type:</strong> ${result.data_type}
+                    `;
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+```
+
+### Tutorial 5: Command Line Interface and Automation
+
+#### Basic CLI Usage
+```python
+#!/usr/bin/env python3
+"""
+SNS Protocol 2 Command Line Interface
+Usage: python cli.py [encrypt|decrypt] [input_file] [output_file] [options]
+"""
+
+import argparse
+import sys
+import os
+from sns_protocol2 import SNSProtocol2
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(
+        description='SNS Protocol 2 - Secure Encryption CLI',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Encrypt a file
+  python cli.py encrypt secret.txt secret.enc --user-id alice --peer-id bob
+
+  # Decrypt a file
+  python cli.py decrypt secret.enc secret.txt --user-id alice --peer-id bob --session-seed my_session
+
+  # Encrypt with custom session
+  python cli.py encrypt data.json data.enc -u alice -p bob -s "meeting_2024_001"
+        """
+    )
+
+    parser.add_argument('action', choices=['encrypt', 'decrypt'],
+                       help='Action to perform')
+    parser.add_argument('input_file', help='Input file path')
+    parser.add_argument('output_file', help='Output file path')
+
+    # Required identification
+    parser.add_argument('--user-id', '-u', required=True,
+                       help='Your user identifier')
+    parser.add_argument('--peer-id', '-p', required=True,
+                       help='Peer identifier')
+
+    # Optional parameters
+    parser.add_argument('--session-seed', '-s',
+                       help='Session seed (auto-generated if not provided)')
+    parser.add_argument('--chunk-size', '-c', type=int, default=10,
+                       help='Chunk size in MB for large files (default: 10)')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                       help='Verbose output')
+    parser.add_argument('--force', '-f', action='store_true',
+                       help='Overwrite output file if it exists')
+
+    return parser.parse_args()
+
+def generate_session_seed():
+    """Generate a secure session seed"""
+    import secrets
+    import string
+    import time
+
+    # Create unique seed
+    timestamp = str(int(time.time()))
+    random_part = ''.join(secrets.choice(string.ascii_letters + string.digits)
+                         for _ in range(16))
+
+    return f"{timestamp}_{random_part}"
+
+def get_file_size_mb(filepath):
+    """Get file size in MB"""
+    return os.path.getsize(filepath) / (1024 * 1024)
+
+def process_file(args):
+    """Process file encryption/decryption"""
+    # Check input file exists
+    if not os.path.exists(args.input_file):
+        print(f"Error: Input file '{args.input_file}' does not exist")
+        return False
+
+    # Check output file
+    if os.path.exists(args.output_file) and not args.force:
+        response = input(f"Output file '{args.output_file}' exists. Overwrite? [y/N]: ")
+        if response.lower() != 'y':
+            print("Operation cancelled")
+            return False
+
+    # Generate session seed if not provided
+    session_seed = args.session_seed
+    if not session_seed:
+        session_seed = generate_session_seed()
+        if args.verbose:
+            print(f"Generated session seed: {session_seed}")
+
+    # Initialize protocol
+    protocol = SNSProtocol2(args.user_id, args.peer_id, session_seed)
+
+    # Determine if we need chunked processing
+    file_size_mb = get_file_size_mb(args.input_file)
+    use_chunked = file_size_mb > args.chunk_size
+
+    if args.verbose:
+        print(f"Input file size: {file_size_mb:.2f} MB")
+        print(f"Using {'chunked' if use_chunked else 'direct'} processing")
+
+    try:
+        if use_chunked:
+            # Use chunked processor for large files
+            from large_file_processor import LargeFileProcessor
+            processor = LargeFileProcessor(protocol, args.chunk_size)
+
+            if args.action == 'encrypt':
+                processor.encrypt_file(args.input_file, args.output_file)
+            else:
+                processor.decrypt_file(args.input_file, args.output_file)
+        else:
+            # Direct processing for small files
+            with open(args.input_file, 'rb') as f:
+                input_data = f.read()
+
+            if args.action == 'encrypt':
+                output_data = protocol.encrypt_data(input_data)
+            else:
+                output_data = protocol.decrypt_data(input_data)
+
+            with open(args.output_file, 'wb') as f:
+                f.write(output_data)
+
+        if args.verbose:
+            print(f"Session seed used: {session_seed}")
+        print(f"Successfully {args.action}ed '{args.input_file}' -> '{args.output_file}'")
+
+        return True
+
+    except Exception as e:
+        print(f"Error during {args.action}ion: {e}")
+        return False
+
+def main():
+    """Main CLI function"""
+    args = parse_arguments()
+
+    if args.verbose:
+        print("SNS Protocol 2 CLI")
+        print(f"Action: {args.action}")
+        print(f"Input: {args.input_file}")
+        print(f"Output: {args.output_file}")
+        print(f"User ID: {args.user_id}")
+        print(f"Peer ID: {args.peer_id}")
+        print("-" * 50)
+
+    success = process_file(args)
+
+    if success:
+        if args.verbose:
+            print("-" * 50)
+            print("Operation completed successfully!")
+    else:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Advanced CLI Features
+```python
+# batch_processor.py
+import os
+import glob
+from concurrent.futures import ThreadPoolExecutor
+from sns_protocol2 import SNSProtocol2
+
+class BatchProcessor:
+    """Process multiple files in batch"""
+
+    def __init__(self, user_id, peer_id, session_seed, max_workers=4):
+        self.user_id = user_id
+        self.peer_id = peer_id
+        self.session_seed = session_seed
+        self.max_workers = max_workers
+        self.protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    def encrypt_directory(self, input_dir, output_dir, pattern="*.txt"):
+        """Encrypt all files in directory matching pattern"""
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Find files to process
+        file_pattern = os.path.join(input_dir, pattern)
+        input_files = glob.glob(file_pattern)
+
+        print(f"Found {len(input_files)} files to encrypt")
+
+        # Process files in parallel
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = []
+            for input_file in input_files:
+                output_file = os.path.join(output_dir,
+                                         os.path.basename(input_file) + '.enc')
+                future = executor.submit(self._encrypt_single_file,
+                                       input_file, output_file)
+                futures.append(future)
+
+            # Wait for completion
+            for future in futures:
+                future.result()
+
+        print("Batch encryption completed!")
+
+    def decrypt_directory(self, input_dir, output_dir, pattern="*.enc"):
+        """Decrypt all files in directory matching pattern"""
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Find files to process
+        file_pattern = os.path.join(input_dir, pattern)
+        input_files = glob.glob(file_pattern)
+
+        print(f"Found {len(input_files)} files to decrypt")
+
+        # Process files in parallel
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = []
+            for input_file in input_files:
+                # Remove .enc extension
+                base_name = os.path.basename(input_file)
+                if base_name.endswith('.enc'):
+                    base_name = base_name[:-4]
+
+                output_file = os.path.join(output_dir, base_name)
+                future = executor.submit(self._decrypt_single_file,
+                                       input_file, output_file)
+                futures.append(future)
+
+            # Wait for completion
+            for future in futures:
+                future.result()
+
+        print("Batch decryption completed!")
+
+    def _encrypt_single_file(self, input_file, output_file):
+        """Encrypt single file"""
+        try:
+            with open(input_file, 'rb') as f:
+                data = f.read()
+
+            encrypted = self.protocol.encrypt_data(data)
+
+            with open(output_file, 'wb') as f:
+                f.write(encrypted)
+
+            print(f"✓ Encrypted: {input_file} -> {output_file}")
+
+        except Exception as e:
+            print(f"✗ Failed to encrypt {input_file}: {e}")
+
+    def _decrypt_single_file(self, input_file, output_file):
+        """Decrypt single file"""
+        try:
+            with open(input_file, 'rb') as f:
+                data = f.read()
+
+            decrypted = self.protocol.decrypt_data(data)
+
+            with open(output_file, 'wb') as f:
+                f.write(decrypted)
+
+            print(f"✓ Decrypted: {input_file} -> {output_file}")
+
+        except Exception as e:
+            print(f"✗ Failed to decrypt {input_file}: {e}")
+
+# Usage
+if __name__ == "__main__":
+    processor = BatchProcessor("alice", "bob", "batch_session_2024")
+
+    # Encrypt all text files in directory
+    processor.encrypt_directory("./documents", "./encrypted", "*.txt")
+
+    # Decrypt all encrypted files
+    processor.decrypt_directory("./encrypted", "./decrypted", "*.enc")
+```
+
+### Tutorial 6: Error Handling and Debugging
+
+#### Comprehensive Error Handling
+```python
+class SecureSNSHandler:
+    """SNS Protocol 2 with comprehensive error handling"""
+
+    def __init__(self, user_id, peer_id, session_seed):
+        self.user_id = user_id
+        self.peer_id = peer_id
+        self.session_seed = session_seed
+        self.protocol = None
+        self.error_log = []
+        self.max_retries = 3
+
+    def initialize_protocol(self):
+        """Initialize protocol with error handling"""
+        try:
+            self.protocol = SNSProtocol2(self.user_id, self.peer_id, self.session_seed)
+            self.log_info("Protocol initialized successfully")
+            return True
+        except Exception as e:
+            self.log_error(f"Failed to initialize protocol: {e}")
+            return False
+
+    def encrypt_with_retry(self, data, retries=None):
+        """Encrypt with automatic retry on failure"""
+        if retries is None:
+            retries = self.max_retries
+
+        for attempt in range(retries + 1):
+            try:
+                if not self.protocol:
+                    if not self.initialize_protocol():
+                        raise RuntimeError("Could not initialize protocol")
+
+                encrypted = self.protocol.encrypt_data(data)
+                self.log_info(f"Encryption successful on attempt {attempt + 1}")
+                return encrypted
+
+            except Exception as e:
+                self.log_error(f"Encryption attempt {attempt + 1} failed: {e}")
+
+                if attempt < retries:
+                    self.log_info(f"Retrying encryption (attempt {attempt + 2})")
+                    # Reinitialize protocol for next attempt
+                    self.protocol = None
+                else:
+                    raise RuntimeError(f"Encryption failed after {retries + 1} attempts")
+
+        return None
+
+    def decrypt_with_retry(self, encrypted_data, retries=None):
+        """Decrypt with automatic retry on failure"""
+        if retries is None:
+            retries = self.max_retries
+
+        for attempt in range(retries + 1):
+            try:
+                if not self.protocol:
+                    if not self.initialize_protocol():
+                        raise RuntimeError("Could not initialize protocol")
+
+                decrypted = self.protocol.decrypt_data(encrypted_data)
+                self.log_info(f"Decryption successful on attempt {attempt + 1}")
+                return decrypted
+
+            except Exception as e:
+                self.log_error(f"Decryption attempt {attempt + 1} failed: {e}")
+
+                if attempt < retries:
+                    self.log_info(f"Retrying decryption (attempt {attempt + 2})")
+                    # Reinitialize protocol for next attempt
+                    self.protocol = None
+                else:
+                    raise RuntimeError(f"Decryption failed after {retries + 1} attempts")
+
+        return None
+
+    def log_error(self, message):
+        """Log error message"""
+        import datetime
+        timestamp = datetime.datetime.now().isoformat()
+        self.error_log.append(f"ERROR [{timestamp}]: {message}")
+        print(f"ERROR: {message}")
+
+    def log_info(self, message):
+        """Log info message"""
+        import datetime
+        timestamp = datetime.datetime.now().isoformat()
+        self.error_log.append(f"INFO [{timestamp}]: {message}")
+        if self.verbose:
+            print(f"INFO: {message}")
+
+    def get_error_log(self):
+        """Get error log"""
+        return self.error_log.copy()
+
+    def clear_error_log(self):
+        """Clear error log"""
+        self.error_log.clear()
+
+# Usage with error handling
+handler = SecureSNSHandler("alice", "bob", "secure_session")
+
+# Encrypt with automatic retry
+data = b"Sensitive information"
+try:
+    encrypted = handler.encrypt_with_retry(data)
+    print("Encryption successful!")
+except Exception as e:
+    print(f"Encryption failed: {e}")
+    print("Error log:")
+    for error in handler.get_error_log():
+        print(f"  {error}")
+```
+
+#### Debug Mode and Protocol Analysis
+```python
+class DebugProtocol(SNSProtocol2):
+    """Extended protocol with debugging capabilities"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.debug_info = {}
+        self.layer_timings = {}
+        self.enable_debug = True
+
+    def encrypt_data(self, data):
+        """Encrypt with detailed debugging"""
+        if not self.enable_debug:
+            return super().encrypt_data(data)
+
+        self.debug_info = {
+            'input_length': len(data),
+            'input_hash': self._hash_data(data).hex()[:16],
+            'layers': [],
+            'start_time': self._get_timestamp()
+        }
+
+        result = data
+
+        # Process each layer with timing
+        for layer_num in range(1, 16):
+            layer_start = self._get_timestamp()
+
+            try:
+                layer_func = getattr(self, f'_layer_{layer_num}')
+                result = layer_func(result)
+
+                layer_time = self._get_timestamp() - layer_start
+                self.layer_timings[f'layer_{layer_num}'] = layer_time
+
+                layer_info = {
+                    'layer': layer_num,
+                    'output_length': len(result),
+                    'processing_time': layer_time,
+                    'output_hash': self._hash_data(result).hex()[:16]
+                }
+
+                self.debug_info['layers'].append(layer_info)
+
+            except Exception as e:
+                self.debug_info['error'] = {
+                    'layer': layer_num,
+                    'error_message': str(e),
+                    'partial_result_length': len(result)
+                }
+                raise
+
+        self.debug_info['total_time'] = self._get_timestamp() - self.debug_info['start_time']
+        self.debug_info['final_length'] = len(result)
+        self.debug_info['final_hash'] = self._hash_data(result).hex()[:16]
+
+        return result
+
+    def decrypt_data(self, data):
+        """Decrypt with detailed debugging"""
+        if not self.enable_debug:
+            return super().decrypt_data(data)
+
+        # Similar implementation for decryption
+        # (Would mirror encryption but in reverse order)
+        return super().decrypt_data(data)
+
+    def get_debug_info(self):
+        """Get comprehensive debug information"""
+        return {
+            'debug_info': self.debug_info,
+            'layer_timings': self.layer_timings,
+            'performance_summary': self._analyze_performance()
+        }
+
+    def _hash_data(self, data):
+        """Create hash of data for debugging"""
+        import hashlib
+        return hashlib.sha256(data).digest()
+
+    def _get_timestamp(self):
+        """Get high-precision timestamp"""
+        import time
+        return time.perf_counter()
+
+    def _analyze_performance(self):
+        """Analyze performance characteristics"""
+        if not self.layer_timings:
+            return {}
+
+        total_time = sum(self.layer_timings.values())
+        avg_time = total_time / len(self.layer_timings)
+
+        return {
+            'total_processing_time': total_time,
+            'average_layer_time': avg_time,
+            'slowest_layer': max(self.layer_timings.items(), key=lambda x: x[1]),
+            'fastest_layer': min(self.layer_timings.items(), key=lambda x: x[1]),
+            'layer_time_distribution': self.layer_timings
+        }
+
+# Usage with debugging
+debug_protocol = DebugProtocol("alice", "bob", "debug_session")
+
+# Encrypt with debugging
+data = b"Debug test data" * 1000  # Larger data for meaningful timing
+encrypted = debug_protocol.encrypt_data(data)
+
+# Get debug information
+debug_info = debug_protocol.get_debug_info()
+
+print("=== DEBUG INFORMATION ===")
+print(f"Input length: {debug_info['debug_info']['input_length']} bytes")
+print(f"Output length: {debug_info['debug_info']['final_length']} bytes")
+print(f"Total processing time: {debug_info['debug_info']['total_time']:.4f} seconds")
+
+print("\n=== LAYER-BY-LAYER ANALYSIS ===")
+for layer in debug_info['debug_info']['layers']:
+    print(f"Layer {layer['layer']}: {layer['processing_time']:.6f}s "
+          f"(output: {layer['output_length']} bytes)")
+
+print("\n=== PERFORMANCE SUMMARY ===")
+perf = debug_info['performance_summary']
+print(f"Average layer time: {perf['average_layer_time']:.6f}s")
+print(f"Slowest layer: {perf['slowest_layer'][0]} ({perf['slowest_layer'][1]:.6f}s)")
+print(f"Fastest layer: {perf['fastest_layer'][0]} ({perf['fastest_layer'][1]:.6f}s)")
+```
+
 ## Detailed Layer-by-Layer Guide
 
 ### Layer 1: Substitution Cipher
@@ -3397,6 +4657,875 @@ def _ultra_hmac(self, data: bytes, key: bytes) -> bytes:
 **Layer 12: Seal Layer**
 - Final hash for tamper detection
 - Combines all previous transformations
+
+## Complete API Reference
+
+### SNSProtocol2 Class
+
+#### Constructor
+```python
+SNSProtocol2(user_id: str, peer_id: str, session_seed: str)
+```
+
+**Parameters:**
+- `user_id` (str): Unique identifier for the user
+- `peer_id` (str): Unique identifier for the communication peer
+- `session_seed` (str): Seed for generating session-specific keys
+
+**Raises:**
+- `ValueError`: If any parameter is empty or invalid
+- `TypeError`: If parameters are not strings
+
+#### Methods
+
+##### encrypt_data(data: bytes) -> bytes
+Encrypt data using the complete 15-layer protocol.
+
+**Parameters:**
+- `data` (bytes): Data to encrypt
+
+**Returns:**
+- `bytes`: Encrypted data
+
+**Raises:**
+- `TypeError`: If data is not bytes
+- `ValueError`: If data is empty
+- `RuntimeError`: If encryption fails
+
+**Example:**
+```python
+protocol = SNSProtocol2("alice", "bob", "session_123")
+data = b"Hello, World!"
+encrypted = protocol.encrypt_data(data)
+```
+
+##### decrypt_data(encrypted_data: bytes) -> bytes
+Decrypt data using the complete 15-layer protocol.
+
+**Parameters:**
+- `encrypted_data` (bytes): Data to decrypt
+
+**Returns:**
+- `bytes`: Decrypted data
+
+**Raises:**
+- `TypeError`: If encrypted_data is not bytes
+- `ValueError`: If data integrity check fails
+- `RuntimeError`: If decryption fails
+
+**Example:**
+```python
+decrypted = protocol.decrypt_data(encrypted)
+assert decrypted == data
+```
+
+##### get_session_info() -> dict
+Get information about the current session.
+
+**Returns:**
+- `dict`: Session information including keys, parameters, and metadata
+
+**Example:**
+```python
+info = protocol.get_session_info()
+print(f"User ID: {info['user_id']}")
+print(f"Peer ID: {info['peer_id']}")
+print(f"Session Seed: {info['session_seed']}")
+```
+
+### Advanced Classes
+
+#### LargeFileEncryptor
+Handles encryption/decryption of large files using chunked processing.
+
+```python
+class LargeFileEncryptor:
+    def __init__(self, protocol: SNSProtocol2, chunk_size_mb: int = 10)
+```
+
+**Methods:**
+- `encrypt_file(input_path: str, output_path: str)`: Encrypt large file
+- `decrypt_file(input_path: str, output_path: str)`: Decrypt large file
+
+#### StreamingEncryptor
+Handles streaming encryption/decryption for real-time data.
+
+```python
+class StreamingEncryptor:
+    def __init__(self, protocol: SNSProtocol2, buffer_size: int = 8192)
+```
+
+**Methods:**
+- `encrypt_stream(input_stream, output_stream)`: Encrypt data stream
+- `decrypt_stream(input_stream, output_stream)`: Decrypt data stream
+
+#### ProtocolBenchmark
+Benchmark protocol performance.
+
+```python
+class ProtocolBenchmark:
+    def __init__(self, protocol: SNSProtocol2)
+```
+
+**Methods:**
+- `benchmark_encryption(data_sizes: list, iterations: int = 10) -> dict`: Benchmark encryption
+- `memory_usage() -> dict`: Monitor memory usage
+
+### Constants and Configuration
+
+#### Default Values
+```python
+DEFAULT_FEISTEL_ROUNDS = 8
+DEFAULT_CHUNK_SIZE_MB = 10
+DEFAULT_BUFFER_SIZE = 8192
+MAX_DATA_SIZE_MB = 100  # For single operation
+```
+
+#### Security Parameters
+```python
+MASTER_KEY_SIZE = 32  # 256 bits
+LAYER_KEY_SIZE = 16   # 128 bits
+HMAC_KEY_SIZE = 32    # 256 bits
+SALT_SIZE = 16        # 128 bits
+```
+
+## Configuration Guide
+
+### Basic Configuration
+SNS Protocol 2 requires minimal configuration. The main parameters are:
+
+1. **User ID**: Your unique identifier
+2. **Peer ID**: The recipient's unique identifier
+3. **Session Seed**: A secret seed for key generation
+
+### Advanced Configuration Options
+
+#### Custom Protocol Parameters
+```python
+from sns_protocol2 import SNSProtocol2
+
+# Advanced initialization with custom parameters
+protocol = SNSProtocol2(
+    user_id="alice_smith",
+    peer_id="bob_jones",
+    session_seed="confidential_meeting_2024_q3"
+)
+
+# Get protocol configuration
+config = protocol.get_configuration()
+print("Protocol Configuration:")
+for key, value in config.items():
+    print(f"  {key}: {value}")
+```
+
+#### Environment Variables
+```bash
+# Set default user ID
+export SNS_USER_ID="alice"
+
+# Set default session parameters
+export SNS_DEFAULT_CHUNK_SIZE="50"
+export SNS_MAX_MEMORY_USAGE="1024"
+
+# Enable debug mode
+export SNS_DEBUG="true"
+export SNS_LOG_LEVEL="DEBUG"
+```
+
+#### Configuration File (config.json)
+```json
+{
+  "default_user_id": "alice",
+  "default_peer_id": "bob",
+  "security": {
+    "key_rotation_interval": 3600,
+    "max_session_age": 86400,
+    "require_integrity_check": true
+  },
+  "performance": {
+    "chunk_size_mb": 10,
+    "max_workers": 4,
+    "buffer_size": 8192
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "sns_protocol.log",
+    "max_size_mb": 100
+  }
+}
+```
+
+#### Loading Configuration
+```python
+import json
+import os
+
+class SNSConfig:
+    def __init__(self, config_file=None):
+        self.config = self.load_config(config_file)
+
+    def load_config(self, config_file):
+        """Load configuration from file or environment"""
+        config = {
+            'user_id': os.getenv('SNS_USER_ID', 'default_user'),
+            'chunk_size': int(os.getenv('SNS_DEFAULT_CHUNK_SIZE', '10')),
+            'debug': os.getenv('SNS_DEBUG', 'false').lower() == 'true'
+        }
+
+        if config_file and os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                file_config = json.load(f)
+                config.update(file_config)
+
+        return config
+
+    def get(self, key, default=None):
+        return self.config.get(key, default)
+
+# Usage
+config = SNSConfig('config.json')
+protocol = SNSProtocol2(
+    user_id=config.get('default_user_id'),
+    peer_id=config.get('default_peer_id'),
+    session_seed="configured_session"
+)
+```
+
+### Performance Tuning
+
+#### Memory Optimization
+```python
+# For memory-constrained environments
+small_protocol = SNSProtocol2("user", "peer", "session")
+small_encryptor = LargeFileEncryptor(small_protocol, chunk_size_mb=1)  # Smaller chunks
+
+# Monitor memory usage
+import psutil
+process = psutil.Process()
+memory_before = process.memory_info().rss
+
+# Perform encryption
+encrypted = small_protocol.encrypt_data(data)
+
+memory_after = process.memory_info().rss
+memory_used = (memory_after - memory_before) / 1024 / 1024
+print(f"Memory used: {memory_used:.2f} MB")
+```
+
+#### CPU Optimization
+```python
+# Multi-threaded processing for large files
+import concurrent.futures
+
+def parallel_encrypt_file(input_file, output_file, num_threads=4):
+    """Encrypt file using multiple threads"""
+    protocol = SNSProtocol2("user", "peer", "session")
+
+    # Split file into chunks
+    file_size = os.path.getsize(input_file)
+    chunk_size = file_size // num_threads
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = []
+        for i in range(num_threads):
+            start = i * chunk_size
+            end = start + chunk_size if i < num_threads - 1 else file_size
+
+            future = executor.submit(encrypt_chunk, input_file, start, end, protocol)
+            futures.append(future)
+
+        # Collect results
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+
+    # Combine encrypted chunks
+    with open(output_file, 'wb') as f:
+        for chunk in sorted(results, key=lambda x: x[0]):
+            f.write(chunk[1])
+
+def encrypt_chunk(input_file, start, end, protocol):
+    """Encrypt a chunk of the file"""
+    with open(input_file, 'rb') as f:
+        f.seek(start)
+        chunk = f.read(end - start)
+
+    encrypted = protocol.encrypt_data(chunk)
+    return start, encrypted
+```
+
+#### GPU Acceleration (Optional)
+```python
+try:
+    import torch
+
+    class GPUAcceleratedProtocol:
+        def __init__(self, user_id, peer_id, session_seed):
+            self.cpu_protocol = SNSProtocol2(user_id, peer_id, session_seed)
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        def encrypt_data_gpu(self, data):
+            """GPU-accelerated encryption for large datasets"""
+            # Convert data to GPU tensor
+            data_tensor = torch.tensor(list(data), dtype=torch.uint8, device=self.device)
+
+            # Perform GPU operations (simplified example)
+            # In practice, this would implement layer operations on GPU
+            result_tensor = data_tensor  # Placeholder
+
+            return bytes(result_tensor.cpu().numpy())
+
+except ImportError:
+    print("PyTorch not available for GPU acceleration")
+```
+
+## Security Best Practices
+
+### Key Management
+```python
+import secrets
+import string
+
+class SecureKeyManager:
+    """Secure key management for SNS Protocol"""
+
+    def __init__(self):
+        self.keys = {}
+        self.key_history = []
+
+    def generate_secure_session_seed(self, length=32):
+        """Generate cryptographically secure session seed"""
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+    def create_unique_session(self, user_id, peer_id, context=""):
+        """Create unique session for communication"""
+        timestamp = str(int(time.time()))
+        random_part = secrets.token_hex(16)
+        context_hash = hashlib.sha256(context.encode()).hexdigest()[:8]
+
+        session_seed = f"{user_id}_{peer_id}_{timestamp}_{random_part}_{context_hash}"
+
+        # Store session info
+        session_info = {
+            'user_id': user_id,
+            'peer_id': peer_id,
+            'session_seed': session_seed,
+            'created_at': timestamp,
+            'context': context
+        }
+
+        self.keys[session_seed] = session_info
+        self.key_history.append(session_info)
+
+        return session_seed
+
+    def rotate_keys(self, old_session_seed):
+        """Rotate to new session keys"""
+        if old_session_seed in self.keys:
+            old_info = self.keys[old_session_seed]
+            new_seed = self.create_unique_session(
+                old_info['user_id'],
+                old_info['peer_id'],
+                old_info['context'] + "_rotated"
+            )
+
+            # Mark old session as expired
+            old_info['expired'] = True
+            old_info['rotated_to'] = new_seed
+
+            return new_seed
+
+        return None
+
+    def validate_session(self, session_seed, max_age_hours=24):
+        """Validate session is still active"""
+        if session_seed not in self.keys:
+            return False
+
+        session_info = self.keys[session_seed]
+        if session_info.get('expired', False):
+            return False
+
+        # Check age
+        created_at = int(session_info['created_at'])
+        current_time = int(time.time())
+        age_hours = (current_time - created_at) / 3600
+
+        return age_hours <= max_age_hours
+
+# Usage
+key_manager = SecureKeyManager()
+
+# Create secure session
+session_seed = key_manager.create_unique_session("alice", "bob", "confidential_document")
+protocol = SNSProtocol2("alice", "bob", session_seed)
+
+# Validate before use
+if key_manager.validate_session(session_seed):
+    encrypted = protocol.encrypt_data(data)
+else:
+    print("Session expired, rotating keys...")
+    new_seed = key_manager.rotate_keys(session_seed)
+    protocol = SNSProtocol2("alice", "bob", new_seed)
+```
+
+### Data Integrity Verification
+```python
+class IntegrityVerifier:
+    """Verify data integrity before and after encryption"""
+
+    def __init__(self, protocol):
+        self.protocol = protocol
+
+    def calculate_integrity_hash(self, data):
+        """Calculate integrity hash of data"""
+        import hashlib
+        return hashlib.sha256(data).hexdigest()
+
+    def verify_data_integrity(self, original_data, processed_data):
+        """Verify data integrity through encryption/decryption cycle"""
+        # Encrypt
+        encrypted = self.protocol.encrypt_data(original_data)
+
+        # Decrypt
+        decrypted = self.protocol.decrypt_data(encrypted)
+
+        # Verify
+        integrity_ok = (original_data == decrypted)
+        original_hash = self.calculate_integrity_hash(original_data)
+        decrypted_hash = self.calculate_integrity_hash(decrypted)
+
+        return {
+            'integrity_ok': integrity_ok,
+            'original_hash': original_hash,
+            'decrypted_hash': decrypted_hash,
+            'match': original_hash == decrypted_hash
+        }
+
+    def secure_file_transfer(self, file_path, recipient_protocol):
+        """Secure file transfer with integrity verification"""
+        # Read file
+        with open(file_path, 'rb') as f:
+            data = f.read()
+
+        # Calculate original hash
+        original_hash = self.calculate_integrity_hash(data)
+
+        # Encrypt
+        encrypted = self.protocol.encrypt_data(data)
+
+        # Simulate transfer (in real scenario, send over network)
+        # transferred_data = send_to_recipient(encrypted)
+
+        # At recipient side
+        decrypted = recipient_protocol.decrypt_data(encrypted)
+
+        # Verify integrity
+        recipient_hash = self.calculate_integrity_hash(decrypted)
+
+        return {
+            'transfer_success': original_hash == recipient_hash,
+            'original_hash': original_hash,
+            'recipient_hash': recipient_hash
+        }
+
+# Usage
+verifier = IntegrityVerifier(protocol)
+
+# Verify encryption/decryption integrity
+result = verifier.verify_data_integrity(b"Test data", protocol)
+print(f"Integrity check: {'PASS' if result['integrity_ok'] else 'FAIL'}")
+```
+
+### Secure Communication Protocol
+```python
+class SecureCommunicationChannel:
+    """Secure communication channel using SNS Protocol"""
+
+    def __init__(self, user_id, peer_id):
+        self.user_id = user_id
+        self.peer_id = peer_id
+        self.key_manager = SecureKeyManager()
+        self.current_session = None
+
+    def establish_secure_channel(self):
+        """Establish secure communication channel"""
+        self.current_session = self.key_manager.create_unique_session(
+            self.user_id, self.peer_id, "secure_channel"
+        )
+        self.protocol = SNSProtocol2(self.user_id, self.peer_id, self.current_session)
+        return self.current_session
+
+    def send_secure_message(self, message, message_type="text"):
+        """Send secure message"""
+        if not self.current_session:
+            self.establish_secure_channel()
+
+        # Prepare message
+        if message_type == "text":
+            data = message.encode('utf-8')
+        elif message_type == "binary":
+            data = message
+        else:
+            raise ValueError(f"Unsupported message type: {message_type}")
+
+        # Add metadata
+        import json
+        metadata = {
+            'sender': self.user_id,
+            'recipient': self.peer_id,
+            'timestamp': int(time.time()),
+            'message_type': message_type,
+            'session': self.current_session
+        }
+
+        metadata_bytes = json.dumps(metadata).encode('utf-8')
+        combined_data = len(metadata_bytes).to_bytes(4, 'big') + metadata_bytes + data
+
+        # Encrypt
+        encrypted = self.protocol.encrypt_data(combined_data)
+
+        return {
+            'encrypted_data': encrypted,
+            'session': self.current_session,
+            'metadata': metadata
+        }
+
+    def receive_secure_message(self, encrypted_package):
+        """Receive and decrypt secure message"""
+        try:
+            # Validate session
+            session_seed = encrypted_package['session']
+            if not self.key_manager.validate_session(session_seed):
+                raise ValueError("Invalid or expired session")
+
+            # Set up protocol for this session
+            temp_protocol = SNSProtocol2(self.user_id, self.peer_id, session_seed)
+
+            # Decrypt
+            encrypted_data = encrypted_package['encrypted_data']
+            decrypted_data = temp_protocol.decrypt_data(encrypted_data)
+
+            # Parse metadata
+            metadata_length = int.from_bytes(decrypted_data[:4], 'big')
+            metadata_bytes = decrypted_data[4:4+metadata_length]
+            message_data = decrypted_data[4+metadata_length:]
+
+            metadata = json.loads(metadata_bytes.decode('utf-8'))
+
+            # Verify recipient
+            if metadata['recipient'] != self.user_id:
+                raise ValueError("Message not intended for this recipient")
+
+            # Extract message
+            if metadata['message_type'] == "text":
+                message = message_data.decode('utf-8')
+            else:
+                message = message_data
+
+            return {
+                'message': message,
+                'metadata': metadata,
+                'verified': True
+            }
+
+        except Exception as e:
+            return {
+                'error': str(e),
+                'verified': False
+            }
+
+# Usage
+channel = SecureCommunicationChannel("alice", "bob")
+
+# Send message
+message = "This is a confidential message"
+secure_package = channel.send_secure_message(message)
+
+# Receive message (on bob's side)
+bob_channel = SecureCommunicationChannel("bob", "alice")
+received = bob_channel.receive_secure_message(secure_package)
+
+if received['verified']:
+    print(f"Received: {received['message']}")
+    print(f"From: {received['metadata']['sender']}")
+else:
+    print(f"Error: {received['error']}")
+```
+
+## Troubleshooting Guide
+
+### Common Issues and Solutions
+
+#### 1. "Integrity verification failed"
+**Symptoms:**
+- Decryption fails with integrity error
+- Data appears corrupted
+
+**Solutions:**
+```python
+# Check if data was tampered with
+try:
+    decrypted = protocol.decrypt_data(encrypted_data)
+except ValueError as e:
+    if "integrity" in str(e).lower():
+        print("Data integrity compromised!")
+        print("Possible causes:")
+        print("- Data corrupted during transmission")
+        print("- Wrong keys used for decryption")
+        print("- Protocol version mismatch")
+
+# Verify with known good data
+test_data = b"Test integrity check"
+encrypted_test = protocol.encrypt_data(test_data)
+decrypted_test = protocol.decrypt_data(encrypted_test)
+assert decrypted_test == test_data, "Protocol integrity check failed"
+```
+
+#### 2. Memory Errors with Large Files
+**Symptoms:**
+- `MemoryError` when processing large files
+- System becomes unresponsive
+
+**Solutions:**
+```python
+# Use chunked processing
+large_encryptor = LargeFileEncryptor(protocol, chunk_size_mb=5)  # Smaller chunks
+
+# Monitor memory usage
+import psutil
+process = psutil.Process()
+
+def monitor_memory():
+    memory = process.memory_info().rss / 1024 / 1024  # MB
+    if memory > 1000:  # 1GB limit
+        print(f"Warning: High memory usage ({memory:.1f} MB)")
+    return memory
+
+# Process with monitoring
+large_encryptor.encrypt_file('large_file.dat', 'encrypted.dat')
+monitor_memory()
+```
+
+#### 3. Slow Performance
+**Symptoms:**
+- Encryption/decryption takes too long
+- High CPU usage
+
+**Solutions:**
+```python
+# Optimize chunk size based on file size
+import os
+
+def optimize_chunk_size(file_path):
+    file_size_mb = os.path.getsize(file_path) / 1024 / 1024
+
+    if file_size_mb < 10:
+        return 1  # Small chunks for small files
+    elif file_size_mb < 100:
+        return 5  # Medium chunks
+    else:
+        return 10  # Large chunks for big files
+
+chunk_size = optimize_chunk_size('large_file.dat')
+encryptor = LargeFileEncryptor(protocol, chunk_size)
+```
+
+#### 4. Key Management Issues
+**Symptoms:**
+- "Key validation failed"
+- Inconsistent encryption results
+
+**Solutions:**
+```python
+# Ensure consistent key usage
+def create_protocol_with_validation(user_id, peer_id, session_seed):
+    """Create protocol with key validation"""
+
+    # Validate inputs
+    if not all([user_id, peer_id, session_seed]):
+        raise ValueError("All parameters must be non-empty")
+
+    if len(session_seed) < 10:
+        raise ValueError("Session seed too short (minimum 10 characters)")
+
+    # Create protocol
+    protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    # Test protocol with known data
+    test_data = b"protocol validation test"
+    encrypted = protocol.encrypt_data(test_data)
+    decrypted = protocol.decrypt_data(encrypted)
+
+    if decrypted != test_data:
+        raise RuntimeError("Protocol validation failed")
+
+    return protocol
+
+# Usage
+protocol = create_protocol_with_validation("alice", "bob", "secure_session_123")
+```
+
+#### 5. Network Transmission Issues
+**Symptoms:**
+- Data corruption during network transfer
+- Base64 encoding/decoding errors
+
+**Solutions:**
+```python
+import base64
+
+def safe_network_transfer(data, protocol):
+    """Safe data transfer over network"""
+
+    # Encrypt
+    encrypted = protocol.encrypt_data(data)
+
+    # Encode for network transmission
+    encoded = base64.b64encode(encrypted).decode('utf-8')
+
+    # Simulate network transfer
+    # transmitted = send_over_network(encoded)
+
+    # At receiving end
+    try:
+        # Decode received data
+        received_encoded = encoded  # In real scenario, this comes from network
+        received_encrypted = base64.b64decode(received_encoded)
+
+        # Decrypt
+        decrypted = protocol.decrypt_data(received_encrypted)
+
+        return decrypted
+
+    except Exception as e:
+        print(f"Network transfer failed: {e}")
+        return None
+
+# Usage
+original_data = b"Network transfer test"
+received_data = safe_network_transfer(original_data, protocol)
+assert received_data == original_data
+```
+
+### Debug Mode Troubleshooting
+```python
+# Enable detailed debugging
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Create debug protocol
+debug_protocol = DebugProtocol("alice", "bob", "debug_session")
+
+try:
+    # Attempt encryption with debugging
+    data = b"Debug test data"
+    encrypted = debug_protocol.encrypt_data(data)
+
+    # Get debug information
+    debug_info = debug_protocol.get_debug_info()
+
+    print("=== DEBUG REPORT ===")
+    print(f"Input length: {debug_info['debug_info']['input_length']}")
+    print(f"Output length: {debug_info['debug_info']['final_length']}")
+    print(".4f")
+
+    if 'error' in debug_info['debug_info']:
+        print(f"Error at layer {debug_info['debug_info']['error']['layer']}:")
+        print(f"  {debug_info['debug_info']['error']['error_message']}")
+
+    print("\nLayer timings:")
+    for layer, time in debug_info['layer_timings'].items():
+        print(".6f")
+
+except Exception as e:
+    print(f"Operation failed: {e}")
+    logging.exception("Detailed error information")
+```
+
+### Performance Diagnostics
+```python
+class PerformanceDiagnostic:
+    """Diagnose performance issues"""
+
+    def __init__(self, protocol):
+        self.protocol = protocol
+
+    def run_diagnostics(self, test_sizes=[100, 1000, 10000, 100000]):
+        """Run comprehensive performance diagnostics"""
+
+        results = {}
+
+        for size in test_sizes:
+            print(f"Testing with {size} bytes...")
+
+            # Generate test data
+            test_data = os.urandom(size)
+
+            # Time encryption
+            start_time = time.perf_counter()
+            encrypted = self.protocol.encrypt_data(test_data)
+            encrypt_time = time.perf_counter() - start_time
+
+            # Time decryption
+            start_time = time.perf_counter()
+            decrypted = self.protocol.decrypt_data(encrypted)
+            decrypt_time = time.perf_counter() - start_time
+
+            # Verify
+            verified = (decrypted == test_data)
+
+            results[size] = {
+                'encrypt_time': encrypt_time,
+                'decrypt_time': decrypt_time,
+                'throughput_encrypt': size / encrypt_time,
+                'throughput_decrypt': size / decrypt_time,
+                'verified': verified,
+                'expansion_ratio': len(encrypted) / len(test_data)
+            }
+
+        return results
+
+    def print_report(self, results):
+        """Print performance report"""
+        print("\n=== PERFORMANCE DIAGNOSTIC REPORT ===")
+        print("Size (bytes) | Encrypt (s) | Decrypt (s) | Encrypt MB/s | Decrypt MB/s | Verified")
+        print("-" * 85)
+
+        for size, data in results.items():
+            print("8d")
+
+    def identify_bottlenecks(self, results):
+        """Identify performance bottlenecks"""
+        print("\n=== BOTTLENECK ANALYSIS ===")
+
+        # Analyze scaling
+        sizes = list(results.keys())
+        encrypt_times = [results[size]['encrypt_time'] for size in sizes]
+
+        # Calculate scaling factor
+        if len(sizes) > 1:
+            time_ratio = encrypt_times[-1] / encrypt_times[0]
+            size_ratio = sizes[-1] / sizes[0]
+
+            scaling_efficiency = size_ratio / time_ratio
+
+            if scaling_efficiency > 0.8:
+                print("✓ Good scaling efficiency")
+            elif scaling_efficiency > 0.5:
+                print("⚠ Moderate scaling - consider optimization")
+            else:
+                print("✗ Poor scaling - significant bottleneck detected")
+
+        # Check memory expansion
+        avg_expansion = sum(results[size]['expansion_ratio'] for size in sizes) / len(sizes)
+        print(".2f")
+
+# Usage
+diagnostic = PerformanceDiagnostic(protocol)
+results = diagnostic.run_diagnostics()
+diagnostic.print_report(results)
+diagnostic.identify_bottlenecks(results)
+```
 
 ## Error Handling and Debugging
 
@@ -3869,6 +5998,859 @@ except Exception as e:
 - **Homomorphic encryption** for computations on encrypted data
 - **Functional encryption** for fine-grained access control
 - **DNA-based cryptography** integration
+
+## Deployment Guides
+
+### Docker Container Deployment
+
+#### Dockerfile
+```dockerfile
+FROM python:3.9-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash snsuser && \
+    chown -R snsuser:snsuser /app
+USER snsuser
+
+# Expose port for web interface
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "from sns_protocol2 import SNSProtocol2; p = SNSProtocol2('health', 'check', 'test'); p.encrypt_data(b'test')" || exit 1
+
+# Run application
+CMD ["python", "app.py"]
+```
+
+#### Docker Compose for Complete System
+```yaml
+version: '3.8'
+
+services:
+  sns-protocol:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SNS_USER_ID=production_user
+      - SNS_DEBUG=false
+      - SNS_MAX_MEMORY=2048
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from sns_protocol2 import SNSProtocol2; print('Health check OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      - sns-protocol
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+```
+
+#### Building and Running
+```bash
+# Build the container
+docker build -t sns-protocol-2 .
+
+# Run locally
+docker run -p 8000:8000 sns-protocol-2
+
+# Run with compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f sns-protocol
+```
+
+### Cloud Deployment (AWS)
+
+#### AWS Lambda Function
+```python
+# lambda_function.py
+import json
+import base64
+from sns_protocol2 import SNSProtocol2
+
+def lambda_handler(event, context):
+    """AWS Lambda handler for SNS Protocol"""
+
+    try:
+        # Parse request
+        body = json.loads(event.get('body', '{}'))
+        operation = body.get('operation')
+        user_id = body.get('user_id')
+        peer_id = body.get('peer_id')
+        session_seed = body.get('session_seed')
+
+        if not all([operation, user_id, peer_id, session_seed]):
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'Missing required parameters'})
+            }
+
+        # Initialize protocol
+        protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+        if operation == 'encrypt':
+            # Encrypt data
+            data_b64 = body.get('data')
+            if not data_b64:
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({'error': 'No data provided'})
+                }
+
+            data = base64.b64decode(data_b64)
+            encrypted = protocol.encrypt_data(data)
+
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'result': base64.b64encode(encrypted).decode('utf-8'),
+                    'operation': 'encrypt'
+                })
+            }
+
+        elif operation == 'decrypt':
+            # Decrypt data
+            encrypted_b64 = body.get('encrypted_data')
+            if not encrypted_b64:
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({'error': 'No encrypted data provided'})
+                }
+
+            encrypted_data = base64.b64decode(encrypted_b64)
+            decrypted = protocol.decrypt_data(encrypted_data)
+
+            return {
+                'statusCode': 200,
+                'body': json.dumps({
+                    'result': base64.b64encode(decrypted).decode('utf-8'),
+                    'operation': 'decrypt'
+                })
+            }
+
+        else:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'Invalid operation'})
+            }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': str(e)})
+        }
+```
+
+#### AWS SAM Template
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SNS Protocol 2 Serverless API
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Runtime: python3.9
+
+Resources:
+  SNSProtocolFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_function.lambda_handler
+      CodeUri: .
+      Events:
+        EncryptDecryptAPI:
+          Type: Api
+          Properties:
+            Path: /{operation}
+            Method: post
+            RestApiId: !Ref SNSProtocolAPI
+
+  SNSProtocolAPI:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: SNSProtocolAPI
+      StageName: prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+Outputs:
+  APIEndpoint:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${SNSProtocolAPI}.execute-api.${AWS::Region}.amazonaws.com/prod"
+```
+
+#### Deployment Commands
+```bash
+# Install AWS SAM CLI
+pip install aws-sam-cli
+
+# Build and deploy
+sam build
+sam deploy --guided
+
+# Test the API
+curl -X POST https://your-api-id.execute-api.region.amazonaws.com/prod/encrypt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operation": "encrypt",
+    "user_id": "alice",
+    "peer_id": "bob",
+    "session_seed": "aws_session_123",
+    "data": "SGVsbG8gV29ybGQ="  # Base64 encoded "Hello World"
+  }'
+```
+
+### Kubernetes Deployment
+
+#### Kubernetes Manifests
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sns-protocol-deployment
+  labels:
+    app: sns-protocol
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: sns-protocol
+  template:
+    metadata:
+      labels:
+        app: sns-protocol
+    spec:
+      containers:
+      - name: sns-protocol
+        image: sns-protocol-2:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: SNS_USER_ID
+          value: "k8s_user"
+        - name: SNS_DEBUG
+          value: "false"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sns-protocol-service
+spec:
+  selector:
+    app: sns-protocol
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sns-protocol-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - sns-protocol.yourdomain.com
+    secretName: sns-protocol-tls
+  rules:
+  - host: sns-protocol.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sns-protocol-service
+            port:
+              number: 80
+```
+
+#### Helm Chart
+```yaml
+# Chart.yaml
+apiVersion: v2
+name: sns-protocol
+description: SNS Protocol 2 Helm Chart
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+# values.yaml
+replicaCount: 3
+
+image:
+  repository: sns-protocol-2
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: sns-protocol.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: sns-protocol-tls
+      hosts:
+        - sns-protocol.local
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+env:
+  - name: SNS_USER_ID
+    value: "helm_user"
+  - name: SNS_DEBUG
+    value: "false"
+```
+
+#### K8s Deployment Commands
+```bash
+# Apply manifests
+kubectl apply -f deployment.yaml
+
+# Or use Helm
+helm install sns-protocol ./helm-chart
+
+# Check status
+kubectl get pods
+kubectl get services
+kubectl get ingress
+
+# View logs
+kubectl logs -f deployment/sns-protocol-deployment
+
+# Scale deployment
+kubectl scale deployment sns-protocol-deployment --replicas=5
+```
+
+### Traditional Server Deployment
+
+#### Nginx + Gunicorn Setup
+```bash
+# Install dependencies
+sudo apt update
+sudo apt install python3 python3-pip nginx gunicorn
+
+# Clone repository
+git clone https://github.com/your-repo/sns-protocol-2.git
+cd sns-protocol-2
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Create systemd service
+sudo tee /etc/systemd/system/sns-protocol.service > /dev/null <<EOF
+[Unit]
+Description=SNS Protocol 2 Web Service
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/sns-protocol-2
+Environment="PATH=/path/to/sns-protocol-2/venv/bin"
+ExecStart=/path/to/sns-protocol-2/venv/bin/gunicorn --workers 3 --bind unix:sns-protocol.sock -m 007 app:app
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start service
+sudo systemctl enable sns-protocol
+sudo systemctl start sns-protocol
+
+# Configure Nginx
+sudo tee /etc/nginx/sites-available/sns-protocol > /dev/null <<EOF
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/path/to/sns-protocol-2/sns-protocol.sock;
+    }
+}
+EOF
+
+# Enable site
+sudo ln -s /etc/nginx/sites-available/sns-protocol /etc/nginx/sites-enabled
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+#### Apache + mod_wsgi Setup
+```apache
+# /etc/apache2/sites-available/sns-protocol.conf
+<VirtualHost *:80>
+    ServerName your-domain.com
+
+    WSGIDaemonProcess sns-protocol python-path=/path/to/sns-protocol-2:/path/to/sns-protocol-2/venv/lib/python3.9/site-packages
+    WSGIProcessGroup sns-protocol
+    WSGIScriptAlias / /path/to/sns-protocol-2/wsgi.py
+
+    <Directory /path/to/sns-protocol-2>
+        Require all granted
+    </Directory>
+
+    Alias /static /path/to/sns-protocol-2/static
+    <Directory /path/to/sns-protocol-2/static>
+        Require all granted
+    </Directory>
+
+    ErrorLog ${APACHE_LOG_DIR}/sns-protocol-error.log
+    CustomLog ${APACHE_LOG_DIR}/sns-protocol-access.log combined
+</VirtualHost>
+```
+
+## Migration Guide
+
+### Migrating from AES Encryption
+
+#### Before (AES):
+```python
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+import os
+
+# AES encryption
+key = os.urandom(32)  # 256-bit key
+iv = os.urandom(16)
+cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+encryptor = cipher.encryptor()
+
+# Encrypt
+plaintext = b"Hello, World!"
+ciphertext = encryptor.update(plaintext) + encryptor.finalize()
+```
+
+#### After (SNS Protocol 2):
+```python
+from sns_protocol2 import SNSProtocol2
+
+# SNS Protocol 2 encryption
+protocol = SNSProtocol2(
+    user_id="migrated_user",
+    peer_id="recipient",
+    session_seed="migration_session_2024"
+)
+
+# Encrypt (much simpler)
+plaintext = b"Hello, World!"
+ciphertext = protocol.encrypt_data(plaintext)
+```
+
+#### Key Differences:
+| Aspect | AES | SNS Protocol 2 |
+|--------|-----|----------------|
+| Key Management | Manual IV, key handling | Automatic key evolution |
+| Security Layers | Single algorithm | 15-layer encryption |
+| Integrity | Separate HMAC needed | Built-in integrity verification |
+| Quantum Resistance | Vulnerable to Grover | Quantum-resistant design |
+| Ease of Use | Complex setup required | Simple API |
+
+### Migrating from RSA Encryption
+
+#### Before (RSA):
+```python
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+
+# Generate RSA keys
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048
+)
+public_key = private_key.public_key()
+
+# Encrypt with RSA (limited to key size)
+message = b"Short message only"
+ciphertext = public_key.encrypt(
+    message,
+    padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None
+    )
+)
+```
+
+#### After (SNS Protocol 2):
+```python
+from sns_protocol2 import SNSProtocol2
+
+# No key generation needed
+protocol = SNSProtocol2("rsa_migrated_user", "recipient", "rsa_session")
+
+# Encrypt any size data
+message = b"Any size message, no length restrictions!"
+ciphertext = protocol.encrypt_data(message)
+```
+
+### Migrating from Custom Encryption
+
+#### Assess Current Implementation
+```python
+def assess_current_encryption(current_encrypt_func, test_data=b"Test data 123"):
+    """Assess current encryption implementation"""
+
+    # Test basic functionality
+    try:
+        encrypted = current_encrypt_func(test_data)
+        print(f"✓ Encryption works, output length: {len(encrypted)}")
+
+        # Test consistency
+        encrypted2 = current_encrypt_func(test_data)
+        if encrypted == encrypted2:
+            print("✓ Consistent encryption (deterministic)")
+        else:
+            print("⚠ Non-deterministic encryption")
+
+    except Exception as e:
+        print(f"✗ Encryption failed: {e}")
+        return False
+
+    return True
+```
+
+#### Gradual Migration Strategy
+```python
+class EncryptionMigrator:
+    """Gradual migration from old to new encryption"""
+
+    def __init__(self, old_encrypt_func, old_decrypt_func, user_id, peer_id):
+        self.old_encrypt = old_encrypt_func
+        self.old_decrypt = old_decrypt_func
+        self.user_id = user_id
+        self.peer_id = peer_id
+        self.protocol = None
+
+    def migrate_data(self, data, migration_session="migration_2024"):
+        """Migrate data from old to new encryption"""
+
+        # Initialize new protocol
+        if not self.protocol:
+            self.protocol = SNSProtocol2(self.user_id, self.peer_id, migration_session)
+
+        # Decrypt with old system
+        try:
+            decrypted = self.old_decrypt(data)
+        except Exception as e:
+            print(f"Failed to decrypt with old system: {e}")
+            return None
+
+        # Encrypt with new system
+        try:
+            migrated = self.protocol.encrypt_data(decrypted)
+            return migrated
+        except Exception as e:
+            print(f"Failed to encrypt with new system: {e}")
+            return None
+
+    def verify_migration(self, original_data, migrated_data):
+        """Verify migration integrity"""
+
+        # Decrypt migrated data
+        decrypted_migrated = self.protocol.decrypt_data(migrated_data)
+
+        # Compare
+        if decrypted_migrated == original_data:
+            print("✓ Migration successful - data integrity verified")
+            return True
+        else:
+            print("✗ Migration failed - data corruption detected")
+            return False
+
+# Usage
+def old_encrypt(data):
+    # Your old encryption function
+    return data[::-1]  # Simple reverse (example)
+
+def old_decrypt(data):
+    # Your old decryption function
+    return data[::-1]  # Simple reverse (example)
+
+migrator = EncryptionMigrator(old_encrypt, old_decrypt, "alice", "bob")
+
+# Migrate data
+old_encrypted = old_encrypt(b"Hello, World!")
+new_encrypted = migrator.migrate_data(old_encrypted)
+
+if new_encrypted:
+    migrator.verify_migration(b"Hello, World!", new_encrypted)
+```
+
+### Database Migration
+
+#### Migrate Encrypted Database Fields
+```python
+import sqlite3
+from sns_protocol2 import SNSProtocol2
+
+class DatabaseMigrator:
+    """Migrate encrypted fields in database"""
+
+    def __init__(self, db_path, user_id, peer_id, session_seed):
+        self.db_path = db_path
+        self.protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    def migrate_table(self, table_name, encrypted_columns):
+        """Migrate encrypted columns in a table"""
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        try:
+            # Add new columns for migrated data
+            for col in encrypted_columns:
+                new_col = f"{col}_migrated"
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {new_col} BLOB")
+
+            # Migrate data
+            cursor.execute(f"SELECT rowid, {', '.join(encrypted_columns)} FROM {table_name}")
+            rows = cursor.fetchall()
+
+            for row in rows:
+                rowid = row[0]
+                old_values = row[1:]
+
+                new_values = []
+                for old_value in old_values:
+                    if old_value:  # Not NULL
+                        # Assume old_value is encrypted with old system
+                        # decrypted = old_decrypt(old_value)  # Your old decrypt function
+                        decrypted = old_value  # Placeholder
+
+                        # Encrypt with new system
+                        new_encrypted = self.protocol.encrypt_data(decrypted)
+                        new_values.append(new_encrypted)
+                    else:
+                        new_values.append(None)
+
+                # Update row
+                placeholders = ', '.join('?' * len(encrypted_columns))
+                columns = ', '.join(f"{col}_migrated" for col in encrypted_columns)
+                cursor.execute(f"UPDATE {table_name} SET {columns} = ({placeholders}) WHERE rowid = ?",
+                             new_values + [rowid])
+
+            conn.commit()
+            print(f"✓ Migrated {len(rows)} rows in {table_name}")
+
+        except Exception as e:
+            conn.rollback()
+            print(f"✗ Migration failed: {e}")
+        finally:
+            conn.close()
+
+# Usage
+migrator = DatabaseMigrator("encrypted_data.db", "alice", "bob", "db_migration")
+migrator.migrate_table("user_data", ["encrypted_field1", "encrypted_field2"])
+```
+
+### API Migration
+
+#### Migrate REST API Endpoints
+```python
+# Before (old encryption)
+@app.route('/api/encrypt', methods=['POST'])
+def old_encrypt_endpoint():
+    data = request.json
+    key = data['key']
+    plaintext = base64.b64decode(data['data'])
+
+    # Old encryption logic
+    ciphertext = old_encrypt(plaintext, key)
+
+    return jsonify({
+        'encrypted': base64.b64encode(ciphertext).decode()
+    })
+
+# After (SNS Protocol 2)
+@app.route('/api/v2/encrypt', methods=['POST'])
+def new_encrypt_endpoint():
+    data = request.json
+
+    protocol = SNSProtocol2(
+        user_id=data['user_id'],
+        peer_id=data['peer_id'],
+        session_seed=data.get('session_seed', 'api_session')
+    )
+
+    plaintext = base64.b64decode(data['data'])
+    ciphertext = protocol.encrypt_data(plaintext)
+
+    return jsonify({
+        'encrypted': base64.b64encode(ciphertext).decode(),
+        'version': '2.0',
+        'session': data.get('session_seed', 'api_session')
+    })
+
+# Backward compatibility endpoint
+@app.route('/api/encrypt', methods=['POST'])
+def backward_compatible_encrypt():
+    """Maintain backward compatibility"""
+    data = request.json
+
+    # Map old API to new API
+    user_id = data.get('key', 'legacy_user')  # Use old key as user_id
+    peer_id = 'api_server'
+    session_seed = 'legacy_api_session'
+
+    protocol = SNSProtocol2(user_id, peer_id, session_seed)
+
+    plaintext = base64.b64decode(data['data'])
+    ciphertext = protocol.encrypt_data(plaintext)
+
+    return jsonify({
+        'encrypted': base64.b64encode(ciphertext).decode(),
+        'version': '2.0',
+        'legacy': True
+    })
+```
+
+### Testing Migration
+
+#### Migration Test Suite
+```python
+import unittest
+from sns_protocol2 import SNSProtocol2
+
+class MigrationTests(unittest.TestCase):
+    """Test migration from old encryption to SNS Protocol 2"""
+
+    def setUp(self):
+        self.protocol = SNSProtocol2("test_user", "test_peer", "migration_test")
+
+    def test_data_integrity(self):
+        """Test that migrated data maintains integrity"""
+        test_data = b"Migration integrity test data"
+
+        # Simulate old encryption
+        old_encrypted = test_data[::-1]  # Simple reverse
+
+        # Migrate
+        old_decrypted = old_encrypted[::-1]  # Reverse back
+        new_encrypted = self.protocol.encrypt_data(old_decrypted)
+        new_decrypted = self.protocol.decrypt_data(new_encrypted)
+
+        self.assertEqual(new_decrypted, test_data)
+
+    def test_large_data_migration(self):
+        """Test migration of large data"""
+        large_data = b"A" * 1000000  # 1MB of data
+
+        # Simulate old encryption
+        old_encrypted = large_data[::-1]
+
+        # Migrate with chunked processing
+        old_decrypted = old_encrypted[::-1]
+        new_encrypted = self.protocol.encrypt_data(old_decrypted)
+        new_decrypted = self.protocol.decrypt_data(new_encrypted)
+
+        self.assertEqual(new_decrypted, large_data)
+
+    def test_api_compatibility(self):
+        """Test API compatibility after migration"""
+        # Test new API
+        result = self.protocol.encrypt_data(b"API test")
+        self.assertIsInstance(result, bytes)
+        self.assertGreater(len(result), 0)
+
+        # Test decryption
+        decrypted = self.protocol.decrypt_data(result)
+        self.assertEqual(decrypted, b"API test")
+
+if __name__ == '__main__':
+    unittest.main()
+```
 
 ---
 
